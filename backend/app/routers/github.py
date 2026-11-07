@@ -209,6 +209,18 @@ async def publish_comment_to_github(
     db: Session = Depends(get_db)
 ):
     """Publish an explicitly developer-approved comment to GitHub."""
+    review = db.query(Review).filter(Review.id == review_id).first()
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found.")
+
+    is_authorized = (
+        review.user_id == current_user.id or
+        review.project.owner_id == current_user.id or
+        any(m.user_id == current_user.id for m in review.project.members)
+    )
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Not authorized to publish comments for this review.")
+
     conn = db.query(GitHubConnection).filter(GitHubConnection.user_id == current_user.id).first()
     if not conn:
         raise HTTPException(

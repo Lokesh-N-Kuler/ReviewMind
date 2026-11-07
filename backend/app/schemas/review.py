@@ -1,6 +1,6 @@
 import datetime
 from typing import List, Optional, Dict, Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 SeverityLevel = Literal["critical", "high", "medium", "low", "informational"]
 CategoryType = Literal[
@@ -31,10 +31,72 @@ class FindingSchema(BaseModel):
     confidence: float = Field(0.9, ge=0.0, le=1.0, description="Confidence level between 0 and 1")
     memory_references: List[str] = Field(default_factory=list, description="IDs or quotes of recalled memories applied to this finding")
 
+    @field_validator("severity", mode="before")
+    @classmethod
+    def normalize_severity(cls, v: Any) -> str:
+        s = str(v).lower().strip()
+        mapping = {
+            "crit": "critical",
+            "blocker": "critical",
+            "major": "high",
+            "error": "high",
+            "warn": "medium",
+            "warning": "medium",
+            "moderate": "medium",
+            "minor": "low",
+            "info": "informational",
+            "note": "informational",
+            "suggestion": "informational",
+        }
+        return mapping.get(s, s if s in ("critical", "high", "medium", "low", "informational") else "medium")
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def normalize_category(cls, v: Any) -> str:
+        c = str(v).lower().strip().replace(" ", "_").replace("-", "_")
+        mapping = {
+            "vulnerability": "security",
+            "sec": "security",
+            "auth": "security",
+            "defect": "bug",
+            "style": "code_quality",
+            "quality": "code_quality",
+            "convention": "project_standards",
+            "standards": "project_standards",
+            "best_practice": "code_quality",
+            "perf": "performance",
+            "validation": "input_validation",
+            "errors": "error_handling",
+        }
+        valid_cats = {
+            "bug", "security", "performance", "code_quality", "maintainability",
+            "error_handling", "input_validation", "duplicated_code", "edge_cases", "project_standards"
+        }
+        mapped = mapping.get(c, c)
+        return mapped if mapped in valid_cats else "code_quality"
+
+    model_config = ConfigDict(from_attributes=True)
+
 class AIReviewOutput(BaseModel):
     summary: str = Field(..., description="High-level evaluation summary of the submitted code")
     score: float = Field(100.0, ge=0.0, le=100.0, description="Overall code quality score 0-100")
     findings: List[FindingSchema] = Field(default_factory=list, description="List of detected findings")
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def validate_score(cls, v: Any) -> float:
+        try:
+            val = float(v)
+            return max(0.0, min(100.0, val))
+        except (ValueError, TypeError):
+            return 80.0
+
+    @field_validator("findings", mode="before")
+    @classmethod
+    def validate_findings(cls, v: Any) -> List[Any]:
+        if not v or not isinstance(v, list):
+            return []
+        return v
 
 class ReviewCreateRequest(BaseModel):
     project_id: int

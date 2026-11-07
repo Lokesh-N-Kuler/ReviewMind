@@ -14,7 +14,7 @@ class ReviewFeedback(Base):
     comment = Column(Text, nullable=True)
     is_retained_in_hindsight = Column(Boolean, default=False)
     hindsight_memory_id = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     review = relationship("Review", back_populates="feedback")

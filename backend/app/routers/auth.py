@@ -14,7 +14,7 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
-    if not credentials:
+    if not credentials or not credentials.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required. Please provide a Bearer token.",
@@ -29,7 +29,15 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = db.query(User).filter(User.id == uid).first()
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -42,13 +50,17 @@ def get_optional_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User | None:
-    if not credentials:
+    if not credentials or not credentials.credentials:
         return None
     try:
         payload = decode_access_token(credentials.credentials)
         if not payload or "sub" not in payload:
             return None
-        return db.query(User).filter(User.id == int(payload["sub"])).first()
+        uid = int(payload["sub"])
+        user = db.query(User).filter(User.id == uid).first()
+        if user and user.is_active:
+            return user
+        return None
     except Exception:
         return None
 
@@ -85,6 +97,11 @@ def login(login_in: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password."
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is deactivated."
         )
 
     access_token = create_access_token(data={"sub": str(user.id), "email": user.email})

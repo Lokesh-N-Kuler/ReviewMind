@@ -1,6 +1,6 @@
 import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 class UserRegister(BaseModel):
     email: EmailStr
@@ -24,7 +24,6 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 TokenResponse.model_rebuild()

@@ -6,46 +6,50 @@ Unlike conventional stateless code review tools, ReviewMind features **persisten
 
 ---
 
-## Architecture Overview
+## 1. Architecture Overview
 
-```
-+-------------------------------------------------------------------------+
-|                              Frontend (React)                           |
-|  Monaco Editor | 2-Panel Review UI | Project Studio | GitHub PR Review  |
-+------------------------------------+------------------------------------+
-                                     | HTTP / REST
-                                     v
-+-------------------------------------------------------------------------+
-|                            Backend (FastAPI)                            |
-|   Auth (JWT) | Project Manager | Static AST Analyzer | Review Engine    |
-+------------------+------------------------------+-----------------------+
-                   |                              |
-         +---------v---------+          +---------v---------+
-         |  PostgreSQL / DB  |          |  Groq AI Engine   |
-         |  Application Data |          | Structured Review |
-         +-------------------+          +-------------------+
-                   |
-         +---------v---------+
-         | Hindsight Memory  |
-         | Persistent Bank   |
-         +-------------------+
+### Review Orchestrator Dataflow
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Developer / GitHub
+    participant UI as React Frontend (Monaco)
+    participant API as FastAPI Backend
+    participant AST as Static AST Analyzer
+    participant Mem as Hindsight Cloud Memory
+    participant AI as Groq LLM (Structured JSON)
+    participant DB as PostgreSQL / SQLite
+
+    Dev->>UI: Submit Code Snippet or PR Diff
+    UI->>API: POST /api/reviews
+    API->>AST: Run structural AST checks (SQLi, eval, shell)
+    AST-->>API: Returns static AST findings
+    API->>Mem: recall() relevant project memories (Bank: reviewmind-project-{id})
+    Mem-->>API: Returns semantically matching previous rules & findings
+    API->>AI: Build prompt (Source + AST Findings + Recalled Memories)
+    AI-->>API: Return structured review (Severity, Lines, Fixes, Explanations)
+    API->>DB: Persist Review & Findings records
+    API->>Mem: retain() validated critical lessons into Hindsight
+    API-->>UI: Return Comprehensive Review with Memory Attribution
+    UI-->>Dev: Display interactive 2-panel Monaco UI with line jumping
 ```
 
 ### Separation of Responsibilities
 * **PostgreSQL / SQLAlchemy**: Stores transactional application records: users, projects, memberships, review history, audit logs, and encrypted GitHub connections.
-* **Hindsight by Vectorize**: Manages agent long-term memory: semantic recall, recurring bug patterns, confirmed standards, and developer preferences across individual project banks.
+* **Hindsight by Vectorize**: Manages agent long-term memory: semantic recall, recurring bug patterns, confirmed standards, and developer preferences across strictly isolated project banks (`reviewmind-project-{id}`).
 * **Groq API**: High-speed LLM inference with structured JSON output, guided by system guardrails, static AST findings, and recalled memories.
+* **Python AST**: Deterministic static security analysis guaranteeing immediate detection of dangerous patterns (SQL concatenation, `eval()`, `subprocess(shell=True)`, exposed secrets) before LLM generation.
 
 ---
 
-## Technology Stack
+## 2. Technology Stack
 
 ### Frontend
 * **React 19** & **Vite**
 * **Tailwind CSS v4** (Crisp minimal light theme default, optional dark mode)
 * **Monaco Editor** (`@monaco-editor/react` with Python, JS, TS, Java, C++, SQL syntax highlighting & line jumping)
 * **React Router DOM**
-* **Axios** (JWT interceptor)
+* **Axios** (JWT interceptor with automatic bearer token attachment)
 * **Lucide React** icons
 
 ### Backend
@@ -57,45 +61,48 @@ Unlike conventional stateless code review tools, ReviewMind features **persisten
 * **Python AST** static code analyzer (detects SQL concatenation, eval, shell=True, hardcoded credentials)
 
 ### AI & Agent Memory
-* **Groq API** (`llama-3.3-70b-versatile`, configurable through `.env` with model availability inspection)
+* **Groq API** (`openai/gpt-oss-120b` / `llama-3.3-70b-versatile`, dynamically resolved with model availability inspection)
 * **Hindsight by Vectorize** (`hindsight-client` Python SDK with project bank isolation)
 
 ---
 
-## Quick Start Guide
+## 3. Quick Start Guide
 
-### 1. Prerequisites
+### Prerequisites
 * Python 3.11+
 * Node.js v18+ & npm
-* (Optional) Docker for running a local Hindsight server, or Hindsight Cloud credentials
+* Groq API Key
+* Hindsight Cloud Account & API Key (or local Docker Hindsight instance)
 
-### 2. Backend Setup
+---
+
+### Step 1: Backend Setup
 
 ```bash
-cd CodeReviewAgent/backend
+# Navigate to backend directory
+cd backend
 
 # Create and activate virtual environment
 python -m venv venv
-# On Windows:
-.\venv\Scripts\activate
-# On Linux/macOS:
+
+# On Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+# On Linux / macOS:
 source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Configure environment variables
-cp .env.example .env
-```
-
-Edit `.env` with your credentials:
-```env
-DATABASE_URL=sqlite:///./reviewmind.db
-JWT_SECRET_KEY=your-secure-random-jwt-key-32-chars-min
-GROQ_API_KEY=gsk_your_groq_api_key_here
-GROQ_MODEL=llama-3.3-70b-versatile
-HINDSIGHT_BASE_URL=http://localhost:8888
-HINDSIGHT_API_KEY=
+# Ensure your backend/.env contains:
+# DATABASE_URL=sqlite:///./reviewmind.db
+# JWT_SECRET_KEY=your-secure-random-jwt-key-32chars-min
+# GROQ_API_KEY=gsk_...
+# GROQ_MODEL=openai/gpt-oss-120b
+# HINDSIGHT_BASE_URL=https://api.hindsight.vectorize.io
+# HINDSIGHT_API_KEY=your_hindsight_cloud_key
+# HINDSIGHT_BANK_ID=reviewmind
+# HINDSIGHT_TIMEOUT_SECONDS=60
 ```
 
 Run database migrations:
@@ -105,16 +112,18 @@ alembic upgrade head
 
 Start the FastAPI backend server:
 ```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-API Documentation will be available at: `http://localhost:8000/docs`
+API Documentation will be live at: `http://localhost:8000/docs`
 
 ---
 
-### 3. Frontend Setup
+### Step 2: Frontend Setup
 
+Open a new terminal window:
 ```bash
-cd CodeReviewAgent/frontend
+# Navigate to frontend directory
+cd frontend
 
 # Install dependencies
 npm install
@@ -126,83 +135,139 @@ The web application will open at: `http://localhost:3000` (or `http://localhost:
 
 ---
 
-## Setting up Hindsight Persistent Memory
+## 4. Persistent Memory Integration with Hindsight
 
-ReviewMind uses official Hindsight SDK methods (`create_bank`, `retain`, `recall`, `list_memories`).
+ReviewMind integrates the official `hindsight-client` SDK to ensure the AI agent retains knowledge between reviews:
 
-### Option A: Local Self-Hosted Hindsight Server (Docker)
-Run the official Hindsight container:
-```bash
-docker run -d --name hindsight -p 8888:8888 vectorizeio/hindsight:latest
-```
-
-### Option B: Hindsight Cloud
-1. Register for an account at [Vectorize Hindsight](https://vectorize.io).
-2. Set in `backend/.env`:
-```env
-HINDSIGHT_BASE_URL=https://api.hindsight.vectorize.io
-HINDSIGHT_API_KEY=your_hindsight_api_key
-```
-
-*Note: If Hindsight is not running or credentials are missing, ReviewMind displays an honest diagnostic indicator and does not simulate or fake memory results.*
+1. **Before Review (`recall()`)**:
+   Query Hindsight for the current project using the submitted code, language, and context. Retrieve matching past conventions, known bug patterns, and developer feedback.
+2. **During Review (Groq Context)**:
+   Inject recalled memories into the Groq prompt under `RECALLED PERSISTENT PROJECT MEMORIES`. Groq verifies whether the current code repeats known project issues.
+3. **After Review (`retain()`)**:
+   Automatically store validated critical findings in Hindsight. When a developer provides feedback or edits a rule, retain the lesson with tags and metadata.
+4. **Project Isolation**:
+   Every project has a strictly segregated memory bank: `reviewmind-project-{project_id}`. Memories never leak across projects.
 
 ---
 
-## Running the Automated Test Suite
+## 5. End-to-End Workflow Verification (The 7-Step Scenario)
 
-A comprehensive test suite verifies API health, user auth, project management, AST static analysis, review workflows, and Hindsight project isolation:
+ReviewMind includes an automated end-to-end verification script testing the complete persistent memory lifecycle:
 
 ```bash
-cd CodeReviewAgent/backend
-.\venv\Scripts\pytest -v
+cd backend
+.\venv\Scripts\python test_complete_workflow.py
+```
+
+### Actual Test Execution Output:
+```
+======================================================================
+REVIEWMIND - COMPLETE PERSISTENT MEMORY REVIEW WORKFLOW VERIFICATION
+======================================================================
+
+[Step 0] Created Test User: workflow_99af88@example.com (ID: 5)
+[Step 1] Created Project: 'Billing System ec05' (ID: 4)
+         Associated Hindsight Memory Bank: 'reviewmind-project-4'
+
+[Step 2] Submitting First Code Snippet (vulnerable to SQL injection)...
+--- Submitted Code 1 ---
+def fetch_user_balance(user_id):
+    query = "SELECT balance FROM user_accounts WHERE id = " + user_id
+    cursor = db.cursor()
+    cursor.execute(query)
+    return cursor.fetchone()
+------------------------
+
+[Step 3 & 4] Generating AI Code Review via Review Orchestrator (AST + Groq LLM)...
+[SUCCESS] Review #1 Completed!
+          Quality Score: 70.0/100
+          Total Findings: 2
+          Summary: The code contains a critical SQL injection vulnerability due to string concatenation in a database query...
+          Finding: [CRITICAL] Line 2: SQL Injection via String Concatenation
+                   Why it matters: SQL injection can compromise the entire database, exposing sensitive user balances...
+                   Suggested Fix:  Use a parameterized query with placeholders and pass user_id as a parameter...
+
+[Step 5] Checking Hindsight Memory Retention...
+         Stored Confirmed Project Rule into Hindsight Bank 'reviewmind-project-4': ID retained
+         Waiting 3 seconds for Hindsight Cloud semantic indexing...
+
+[Step 6] Submitting Second Code Snippet with another SQL construction issue...
+--- Submitted Code 2 ---
+def get_customer_invoices(customer_id):
+    # Retrieve customer billing history
+    sql = f"SELECT * FROM invoices WHERE customer_id = '{customer_id}' ORDER BY date DESC"
+    return db.execute(sql).fetchall()
+------------------------
+
+[Step 7] Running Second Review - Recalling Previous Project Knowledge...
+[SUCCESS] Review #2 Completed!
+          Quality Score: 55.0/100
+          Recalled Memories Count: 5
+          --> Recalled Memory: 'In the 'Billing System ec05' project, developers must never use string concatenation or f-...'
+          --> Recalled Memory: 'In the 'Billing System ec05' project, developers must use parameterized cursor.execute pla...'
+          --> Recalled Memory: 'The required fix for SQL injection is to use parameterized queries or an ORM....'
+
+[Step 7 Verification] Findings from Second Review:
+          Finding: [CRITICAL] Line 3: SQL Injection via f-string in query
+                   Memory References: ['Memory #1', 'Memory #2', 'Memory #3', 'Memory #4', 'Memory #5']
+                   Explanation: The SQL statement is built by interpolating the user-supplied customer_id directly into the query string using an f-string...
+
+======================================================================
+>>> COMPLETE WORKFLOW TEST PASSED ALL 7 PHASES SUCCESSFULLY! <<<
+======================================================================
 ```
 
 ---
 
-## Repeatable Persistent Memory Demonstration
+## 6. Automated Pytest Test Suite
 
-To observe ReviewMind's learning lifecycle:
+Execute the full backend test suite:
 
 ```bash
-cd CodeReviewAgent/backend
-.\venv\Scripts\python demo_memory_learning.py
+cd backend
+.\venv\Scripts\python -m pytest tests/ -v
 ```
 
-### The Demonstration Workflow:
-1. **First Review (Unlearned State)**:
-   The developer submits code with SQL concatenation (`query = "SELECT * FROM users WHERE id = " + user_id`).
-   ReviewMind identifies SQL injection via AST and AI, recommends parameterized queries, and the developer accepts the fix.
-   The validated lesson is retained into the project's Hindsight memory bank.
-2. **Second Review (Learning Applied)**:
-   The developer submits another function in the same project using string concatenation.
-   ReviewMind recalls the previously established convention from Hindsight and flags the issue with explicit memory attribution:
-   *`"Recalled from Project Memory (Hindsight): Team Rule: In E-Commerce Core, never use string concatenation..."`*
-3. **Third Review**:
-   ReviewMind verifies full adherence to project conventions.
+### Verified Test Matrix:
+* `tests/test_health.py`: Healthcheck & diagnostics endpoints (DB, Groq, Hindsight status).
+* `tests/test_ast_analyzer.py`: AST static security detection (SQL injection concatenation & f-string, dangerous `eval()`, `subprocess(shell=True)`, hardcoded secrets, JavaScript innerHTML DOM XSS).
+* `tests/test_auth_and_projects.py`: User registration, JWT login, and project CRUD operations.
+* `tests/test_reviews.py`: Quick review sandbox and project review with developer feedback submission.
+* `tests/test_groq_connection.py`: Live Groq API connection and dynamic model fallback.
+* `tests/test_hindsight_cloud_integration.py`: Live Hindsight Cloud connectivity, memory retention, recall verification, and bank cleanup.
+* `tests/test_hindsight_workflow_integration.py`:
+  1. `test_1_and_3_validated_finding_retained_and_recalled`: Validates recall before review & retain after review.
+  2. `test_2_retrieved_memory_included_in_groq_context`: Validates prompt inclusion of recalled knowledge.
+  3. `test_4_project_memory_isolation_works`: Validates bank isolation preventing memory leakage between Project A and Project B.
+  4. `test_5_hindsight_failures_handled_gracefully`: Validates resilient fallback when Hindsight is unreachable.
 
 ---
 
-## API Endpoints Reference
+## 7. API Endpoints Reference
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/health` | Service health status |
-| `GET` | `/api/health/diagnostics` | Inspects DB, Groq availability, and Hindsight connection |
+| `GET` | `/api/health/diagnostics` | Live diagnostics for DB, Groq LLM, and Hindsight Memory |
 | `POST` | `/api/auth/register` | Register new user account |
 | `POST` | `/api/auth/login` | Authenticate and obtain JWT access token |
 | `GET` | `/api/auth/me` | Fetch authenticated user profile |
-| `POST` | `/api/projects` | Create a new software project and Hindsight bank |
+| `POST` | `/api/projects` | Create software project with isolated Hindsight bank |
 | `GET` | `/api/projects` | List projects accessible to user |
-| `GET` | `/api/projects/{id}` | Get project details and coding standards |
-| `POST` | `/api/reviews` | Submit source code for full AI & memory review |
-| `POST` | `/api/reviews/quick` | Instant sandbox code review without project setup |
+| `GET` | `/api/projects/{id}` | Get project details, coding standards, and bank ID |
+| `PUT` | `/api/projects/{id}` | Update project standards and settings |
+| `DELETE` | `/api/projects/{id}` | Delete project |
+| `POST` | `/api/reviews` | Submit code for full AST + Memory + Groq review |
+| `POST` | `/api/reviews/quick` | Sandbox review without project context |
 | `GET` | `/api/reviews` | List review history with project & severity filters |
+| `GET` | `/api/reviews/{id}` | Get review details, findings, metrics, and recalled memories |
 | `POST` | `/api/reviews/{id}/feedback` | Record developer feedback and retain into Hindsight |
 | `GET` | `/api/memory/status` | Check Hindsight server connectivity |
 | `GET` | `/api/memory/{project_id}` | Retrieve retained memories for a project |
 | `POST` | `/api/memory/{project_id}/retain` | Manually teach a rule/convention to Hindsight |
-| `POST` | `/api/memory/{project_id}/recall` | Test semantic recall from Hindsight |
+| `POST` | `/api/memory/{project_id}/recall` | Test semantic recall from project memory bank |
 | `POST` | `/api/github/connect-token` | Securely store encrypted GitHub token |
+| `GET` | `/api/github/status` | Check GitHub connection status |
 | `GET` | `/api/github/repositories` | List accessible repositories |
 | `GET` | `/api/github/repositories/{owner}/{repo}/pull-requests` | List open PRs |
 | `POST` | `/api/github/pull-requests/review` | Analyze PR diff with ReviewMind |
@@ -210,12 +275,13 @@ cd CodeReviewAgent/backend
 
 ---
 
-## Security & Privacy Considerations
+## 8. Security & Privacy Guarantees
 
-1. **No Code Execution**: Submitted source code is parsed with static AST and LLM reasoning. Code is **never executed** on the host.
-2. **Prompt Injection Shielding**: Source code is strictly treated as passive data in system prompts, neutralizing attempted prompt injection attacks embedded inside user code.
-3. **Credential Protection**:
+1. **No Automatic Code Execution**: Submitted source code is parsed with static AST and LLM reasoning. Code is **never executed** on the backend.
+2. **Prompt Injection Shielding**: Source code is strictly demarcated as passive data in system prompts, neutralizing attempted prompt injection attacks embedded inside user code.
+3. **Zero Leaked Secrets**:
+   * API keys (`GROQ_API_KEY`, `HINDSIGHT_API_KEY`, `JWT_SECRET_KEY`) are kept on the server and excluded from Git via `.gitignore`.
+   * Frontend code only accesses clean REST APIs without credentials.
    * Passwords are encrypted with salt using pure `bcrypt`.
-   * GitHub personal access tokens are stored encrypted using key-derived cipher streams and never returned in plain text over the API.
-   * Private API keys (`GROQ_API_KEY`, `HINDSIGHT_API_KEY`, `JWT_SECRET_KEY`) are kept on the server and never exposed to the frontend.
-4. **Explicit GitHub Publishing**: ReviewMind requires explicit developer confirmation before publishing any comment to a GitHub PR thread.
+   * GitHub personal access tokens are stored encrypted using key-derived cipher streams and never returned in plain text.
+4. **Explicit Action Required**: ReviewMind requires explicit developer confirmation before publishing any review comments to GitHub PR threads.

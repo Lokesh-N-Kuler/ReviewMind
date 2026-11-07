@@ -58,25 +58,56 @@ def quick_review(
     db: Session = Depends(get_db)
 ):
     """Perform a review without creating a project first (using default demo project or temporary context)."""
-    user_id = current_user.id if current_user else 1
-
-    # Find or create a default sandbox project for quick testing
-    project_id = review_in.project_id
-    if not project_id:
-        sandbox_project = db.query(Project).filter(Project.name == "Playground Project").first()
-        if not sandbox_project:
-            # Create a system demo user if needed
-            demo_user = db.query(User).first()
-            if not demo_user:
-                from app.utils.security import get_password_hash
-                demo_user = User(
-                    email="developer@reviewmind.ai",
-                    hashed_password=get_password_hash("password123"),
-                    full_name="Lead Developer"
+    if current_user:
+        user_id = current_user.id
+        if review_in.project_id:
+            project = db.query(Project).filter(Project.id == review_in.project_id).first()
+            if not project:
+                raise HTTPException(status_code=404, detail="Project not found.")
+            is_member = (
+                project.owner_id == current_user.id or
+                any(m.user_id == current_user.id for m in project.members)
+            )
+            if not is_member:
+                raise HTTPException(status_code=403, detail="Not authorized to submit reviews for this project.")
+            project_id = project.id
+        else:
+            # Personal sandbox for authenticated user
+            sandbox_project = db.query(Project).filter(
+                Project.owner_id == current_user.id,
+                Project.name == "Playground Project"
+            ).first()
+            if not sandbox_project:
+                sandbox_project = Project(
+                    name="Playground Project",
+                    description="Personal sandbox project for instant interactive code reviews.",
+                    owner_id=current_user.id,
+                    languages=["python", "javascript", "typescript", "sql", "java", "cpp"],
+                    coding_standards="Enforce parameterized queries for database operations. Avoid eval and insecure deserialization.",
+                    hindsight_bank_id=f"reviewmind-playground-user{current_user.id}"
                 )
-                db.add(demo_user)
-                db.flush()
+                db.add(sandbox_project)
+                db.commit()
+                db.refresh(sandbox_project)
+            project_id = sandbox_project.id
+    else:
+        # Unauthenticated / Demo mode: strictly isolate to system playground project
+        demo_user = db.query(User).filter(User.email == "demo-user@reviewmind.ai").first()
+        if not demo_user:
+            from app.utils.security import get_password_hash
+            demo_user = User(
+                email="demo-user@reviewmind.ai",
+                hashed_password=get_password_hash("demo_reviewmind_secure_pass_2026"),
+                full_name="ReviewMind Playground User"
+            )
+            db.add(demo_user)
+            db.flush()
 
+        sandbox_project = db.query(Project).filter(
+            Project.name == "Playground Project",
+            Project.owner_id == demo_user.id
+        ).first()
+        if not sandbox_project:
             sandbox_project = Project(
                 name="Playground Project",
                 description="Default sandbox project for instant interactive code reviews.",
@@ -90,7 +121,7 @@ def quick_review(
             db.refresh(sandbox_project)
 
         project_id = sandbox_project.id
-        user_id = demo_user.id if not current_user else current_user.id
+        user_id = demo_user.id
 
     review_record = review_service.perform_review(
         db=db,
@@ -114,16 +145,18 @@ def list_reviews(
 ):
     query = db.query(Review).order_by(Review.created_at.desc())
 
-    if project_id:
+    user_project_ids = [
+        p.id for p in db.query(Project).filter(
+            (Project.owner_id == current_user.id) |
+            (Project.members.any(ProjectMember.user_id == current_user.id))
+        ).all()
+    ]
+
+    if project_id is not None:
+        if project_id not in user_project_ids:
+            raise HTTPException(status_code=403, detail="Not authorized to access reviews for this project.")
         query = query.filter(Review.project_id == project_id)
     else:
-        # Filter to projects accessible to current user
-        user_project_ids = [
-            p.id for p in db.query(Project).filter(
-                (Project.owner_id == current_user.id) |
-                (Project.members.any(ProjectMember.user_id == current_user.id))
-            ).all()
-        ]
         query = query.filter(Review.project_id.in_(user_project_ids))
 
     reviews = query.limit(limit).all()
@@ -150,6 +183,14 @@ def get_review(
     if not review:
         raise HTTPException(status_code=404, detail="Review not found.")
 
+    is_authorized = (
+        review.user_id == current_user.id or
+        review.project.owner_id == current_user.id or
+        any(m.user_id == current_user.id for m in review.project.members)
+    )
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Not authorized to access this review.")
+
     return review_service.format_review_response(review)
 
 @router.get("/{review_id}/findings", response_model=List[FindingSchema])
@@ -161,6 +202,14 @@ def get_review_findings(
     review = db.query(Review).filter(Review.id == review_id).first()
     if not review:
         raise HTTPException(status_code=404, detail="Review not found.")
+
+    is_authorized = (
+        review.user_id == current_user.id or
+        review.project.owner_id == current_user.id or
+        any(m.user_id == current_user.id for m in review.project.members)
+    )
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Not authorized to access findings for this review.")
 
     findings_schemas = []
     for f in review.findings:
@@ -194,6 +243,14 @@ def submit_feedback(
     review = db.query(Review).filter(Review.id == review_id).first()
     if not review:
         raise HTTPException(status_code=404, detail="Review not found.")
+
+    is_authorized = (
+        review.user_id == current_user.id or
+        review.project.owner_id == current_user.id or
+        any(m.user_id == current_user.id for m in review.project.members)
+    )
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Not authorized to submit feedback for this review.")
 
     finding = db.query(ReviewFinding).filter(
         ReviewFinding.review_id == review_id,

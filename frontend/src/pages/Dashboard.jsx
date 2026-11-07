@@ -45,10 +45,14 @@ export default function Dashboard() {
 
         let critical = 0;
         let high = 0;
+        let medium = 0;
+        let low = 0;
         for (const r of reviews) {
           if (r.metrics) {
             critical += r.metrics.critical || 0;
             high += r.metrics.high || 0;
+            medium += r.metrics.medium || 0;
+            low += r.metrics.low || 0;
           }
         }
 
@@ -57,7 +61,8 @@ export default function Dashboard() {
           totalReviews: reviews.length,
           criticalIssues: critical,
           highIssues: high,
-          resolvedIssues: Math.max(0, Math.floor(reviews.length * 1.5)), // dynamically tracked
+          mediumIssues: medium,
+          lowIssues: low,
         });
         setRecentReviews(reviews);
       } catch (err) {
@@ -146,7 +151,7 @@ export default function Dashboard() {
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Target endpoint: <code className="text-slate-700 dark:text-slate-300">{diagnostics?.memory_service?.base_url || 'http://localhost:8888'}</code>
+              Target endpoint: <code className="text-slate-700 dark:text-slate-300">{diagnostics?.memory_service?.base_url || 'https://api.hindsight.vectorize.io'}</code>
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Multi-strategy semantic retrieval, temporal memory, and project bank isolation active.
@@ -173,7 +178,7 @@ export default function Dashboard() {
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Model: <code className="text-slate-700 dark:text-slate-300">{diagnostics?.ai_service?.model || 'llama-3.3-70b-versatile'}</code>
+              Model: <code className="text-slate-700 dark:text-slate-300">{diagnostics?.ai_service?.model || 'openai/gpt-oss-20b'}</code>
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Structured JSON validation with Pydantic guardrails & anti-prompt injection shielding.
@@ -181,6 +186,29 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Zero Projects Alert */}
+      {!loading && stats.totalProjects === 0 && (
+        <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FolderGit2 className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                No projects found
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Create your first project workspace to isolate agent memory banks and track long-term code health.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/projects"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium shrink-0 transition-colors"
+          >
+            Create Project <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
 
       {/* Metrics Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

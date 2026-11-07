@@ -13,13 +13,19 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
-// Optional Route Guard allowing seamless demo usage while preserving login capabilities
+// Route Guard enforcing authentication on protected application routes
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading ReviewMind...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-300 font-sans">
+        Loading ReviewMind...
+      </div>
+    );
   }
-  // Allow demo access even if not explicitly logged in to make immediate review evaluation effortless
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
   return children;
 };
 

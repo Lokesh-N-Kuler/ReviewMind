@@ -11,8 +11,6 @@ import {
   Moon,
   Sun,
   ShieldCheck,
-  Cpu,
-  ChevronRight,
   Menu,
   X,
   Sparkles,
@@ -20,7 +18,7 @@ import {
 import GithubIcon from '../components/GithubIcon';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { memoryService, healthService } from '../services/api';
+import { healthService } from '../services/api';
 
 export default function MainLayout() {
   const { user, logout } = useAuth();
@@ -29,7 +27,7 @@ export default function MainLayout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hindsightStatus, setHindsightStatus] = useState({ connected: false, checking: true });
-  const [aiStatus, setAiStatus] = useState({ available: false, model: 'llama-3.3-70b-versatile' });
+  const [aiStatus, setAiStatus] = useState({ available: false, model: 'openai/gpt-oss-20b' });
 
   useEffect(() => {
     const checkDiagnostics = async () => {
@@ -42,8 +40,8 @@ export default function MainLayout() {
           message: data.memory_service?.message || data.memory_service?.error,
         });
         setAiStatus({
-          available: data.ai_service?.available || false,
-          model: data.ai_service?.model || 'llama-3.3-70b-versatile',
+          available: data.ai_service?.configured || false,
+          model: data.ai_service?.model || 'openai/gpt-oss-20b',
         });
       } catch {
         setHindsightStatus({ connected: false, checking: false });
@@ -127,7 +125,25 @@ export default function MainLayout() {
               />
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
-              {hindsightStatus.connected ? 'Bank Context Active' : 'Self-hosted (Offline)'}
+              {hindsightStatus.connected ? 'Bank Context Active' : 'Offline / Self-hosted'}
+            </p>
+          </div>
+
+          {/* Groq AI Engine Status Pill */}
+          <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs">
+            <div className="flex items-center justify-between font-medium">
+              <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                Groq AI Engine
+              </span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  aiStatus.available ? 'bg-emerald-500' : 'bg-amber-400'
+                }`}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate font-mono">
+              {aiStatus.model || 'openai/gpt-oss-20b'}
             </p>
           </div>
 

@@ -14,8 +14,8 @@ class Project(Base):
     languages = Column(JSON, default=list)  # e.g. ["python", "javascript"]
     coding_standards = Column(Text, nullable=True)  # project-specific guidelines
     hindsight_bank_id = Column(String(255), unique=True, nullable=False, index=True, default=lambda: f"reviewmind-project-{uuid.uuid4().hex[:8]}")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     owner = relationship("User", back_populates="projects")
@@ -31,7 +31,7 @@ class ProjectMember(Base):
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(50), default="member")  # owner, admin, member, viewer
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     project = relationship("Project", back_populates="members")
 
@@ -44,7 +44,7 @@ class ProjectSettings(Base):
     severity_threshold = Column(String(50), default="low")  # critical, high, medium, low, informational
     enabled_categories = Column(JSON, default=lambda: ["security", "bug", "performance", "code_quality", "maintainability"])
     custom_rules = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     project = relationship("Project", back_populates="settings")

@@ -11,8 +11,8 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")

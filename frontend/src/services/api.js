@@ -11,7 +11,12 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('reviewmind_token');
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    if (config.headers && typeof config.headers.set === 'function') {
+      config.headers.set('Authorization', `Bearer ${token}`);
+    } else {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -21,11 +26,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // If unauthorized and on protected route, clear token
+      // If unauthorized and on protected route, clear token and redirect
       const currentPath = window.location.pathname;
       if (currentPath !== '/login' && currentPath !== '/register') {
         localStorage.removeItem('reviewmind_token');
         localStorage.removeItem('reviewmind_user');
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

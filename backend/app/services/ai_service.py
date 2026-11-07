@@ -11,6 +11,7 @@ class AIService:
     def __init__(self):
         self.api_key = settings.GROQ_API_KEY
         self.model = settings.GROQ_MODEL
+        self._active_model: Optional[str] = None
         self._client: Optional[Groq] = None
         if self.api_key:
             self._client = Groq(api_key=self.api_key, timeout=settings.GROQ_TIMEOUT_SECONDS)
@@ -19,13 +20,16 @@ class AIService:
         return bool(self.api_key)
 
     def get_active_model(self) -> str:
-        """Resolve and verify available Groq model, dynamically selecting the best working model."""
+        """Resolve and verify available Groq model, dynamically selecting and caching the best working model."""
+        if self._active_model:
+            return self._active_model
         if not self._client:
             return self.model
         try:
             models_page = self._client.models.list()
             available = [m.id for m in models_page.data]
             if self.model in available:
+                self._active_model = self.model
                 return self.model
 
             # Fallback to available chat models in order of capability
@@ -39,10 +43,12 @@ class AIService:
             for cand in candidates:
                 if cand in available:
                     logger.info(f"Model '{self.model}' not available on account; using verified model '{cand}'")
+                    self._active_model = cand
                     return cand
 
             chat_cand = [m for m in available if "whisper" not in m and "guard" not in m]
-            return chat_cand[0] if chat_cand else self.model
+            self._active_model = chat_cand[0] if chat_cand else self.model
+            return self._active_model
         except Exception:
             return self.model
 
@@ -125,7 +131,15 @@ class AIService:
                 temperature=0.2,
             )
 
-            raw_response = chat_completion.choices[0].message.content
+            raw_response = chat_completion.choices[0].message.content or "{}"
+            raw_response = raw_response.strip()
+            if raw_response.startswith("```json"):
+                raw_response = raw_response[7:]
+            elif raw_response.startswith("```"):
+                raw_response = raw_response[3:]
+            if raw_response.endswith("```"):
+                raw_response = raw_response[:-3]
+            raw_response = raw_response.strip()
             parsed_data = json.loads(raw_response)
             return AIReviewOutput(**parsed_data)
 

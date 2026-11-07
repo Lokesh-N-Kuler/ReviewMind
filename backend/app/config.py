@@ -1,7 +1,12 @@
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_DB_PATH = (BASE_DIR / "reviewmind.db").as_posix()
 
 class Settings(BaseSettings):
     APP_NAME: str = "ReviewMind"
@@ -10,7 +15,16 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # Database: Supports PostgreSQL or SQLite for local dev
-    DATABASE_URL: str = "sqlite:///./reviewmind.db"
+    DATABASE_URL: str = f"sqlite:///{DEFAULT_DB_PATH}"
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def resolve_sqlite_path(cls, v: str) -> str:
+        if v.startswith("sqlite:///./"):
+            rel_part = v[len("sqlite:///./"):]
+            abs_path = (BASE_DIR / rel_part).resolve()
+            return f"sqlite:///{abs_path.as_posix()}"
+        return v
 
     # Security & Auth
     JWT_SECRET_KEY: str = "reviewmind-secure-production-jwt-key-32chars-min-2026"
@@ -19,7 +33,7 @@ class Settings(BaseSettings):
 
     # Groq AI Service
     GROQ_API_KEY: Optional[str] = None
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
     GROQ_TIMEOUT_SECONDS: int = 60
 
     # Hindsight Persistent Agent Memory
@@ -37,7 +51,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(str(BASE_DIR / ".env"), ".env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )

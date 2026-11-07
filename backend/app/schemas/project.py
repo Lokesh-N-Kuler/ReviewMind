@@ -1,6 +1,6 @@
 import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class ProjectBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
@@ -23,8 +23,7 @@ class ProjectSettingsSchema(BaseModel):
     enabled_categories: List[str] = Field(default_factory=lambda: ["security", "bug", "performance", "code_quality", "maintainability"])
     custom_rules: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ProjectResponse(ProjectBase):
     id: int
@@ -35,5 +34,4 @@ class ProjectResponse(ProjectBase):
     settings: Optional[ProjectSettingsSchema] = None
     reviews_count: Optional[int] = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

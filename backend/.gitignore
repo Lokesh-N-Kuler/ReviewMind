@@ -15,5 +15,6 @@ build/
 *.db
 *.sqlite3
 
+
 .idea/
 .vscode/

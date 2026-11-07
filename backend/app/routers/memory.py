@@ -18,6 +18,17 @@ from app.services.memory_service import memory_service
 
 router = APIRouter(prefix="/api/memory", tags=["Hindsight Memory"])
 
+def _verify_project_access(project: Project, user: User):
+    is_member = (
+        project.owner_id == user.id or
+        any(m.user_id == user.id for m in project.members)
+    )
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access memory for this project."
+        )
+
 @router.get("/status", response_model=Dict[str, Any])
 def get_hindsight_server_status():
     """Inspect global connectivity to the Hindsight agent memory server."""
@@ -34,6 +45,7 @@ def get_project_memories(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
+    _verify_project_access(project, current_user)
 
     conn = memory_service.check_connection()
     if not conn.get("connected"):
@@ -55,6 +67,7 @@ def get_project_bank_status(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
+    _verify_project_access(project, current_user)
 
     bank_status = memory_service.get_bank_status(project_id)
     return bank_status
@@ -66,6 +79,11 @@ def get_memory_activity(
     db: Session = Depends(get_db)
 ):
     """Activity log of retained learnings and developer feedback for this project."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    _verify_project_access(project, current_user)
+
     feedback_records = (
         db.query(ReviewFeedback)
         .join(ReviewFeedback.review)
@@ -101,6 +119,7 @@ def retain_project_memory(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
+    _verify_project_access(project, current_user)
 
     conn = memory_service.check_connection()
     if not conn.get("connected"):
@@ -141,6 +160,7 @@ def recall_project_memories(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
+    _verify_project_access(project, current_user)
 
     conn = memory_service.check_connection()
     if not conn.get("connected"):

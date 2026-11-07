@@ -13,8 +13,8 @@ class GitHubConnection(Base):
     encrypted_access_token = Column(Text, nullable=False)  # securely stored token
     token_type = Column(String(50), default="bearer")
     scope = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     user = relationship("User", back_populates="github_connection")
     repositories = relationship("GitHubRepository", back_populates="connection", cascade="all, delete-orphan")
@@ -31,7 +31,7 @@ class GitHubRepository(Base):
     default_branch = Column(String(100), default="main")
     private = Column(Boolean, default=False)
     html_url = Column(String(500), nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     connection = relationship("GitHubConnection", back_populates="repositories")
     project = relationship("Project", back_populates="github_repositories")
@@ -51,6 +51,6 @@ class GitHubPullRequest(Base):
     html_url = Column(String(500), nullable=False)
     diff_url = Column(String(500), nullable=False)
     last_reviewed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     repository = relationship("GitHubRepository", back_populates="pull_requests")

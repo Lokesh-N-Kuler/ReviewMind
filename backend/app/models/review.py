@@ -18,7 +18,7 @@ class Review(Base):
     summary = Column(Text, nullable=True)
     metrics = Column(JSON, default=dict)  # counts of critical, high, medium, low, info issues
     recalled_memories = Column(JSON, default=list)  # memories recalled from Hindsight for this review
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
 
     # Relationships
     project = relationship("Project", back_populates="reviews")
@@ -44,6 +44,6 @@ class ReviewFinding(Base):
     corrected_code = Column(Text, nullable=True)
     confidence = Column(Float, default=0.9)  # 0.0 to 1.0
     memory_references = Column(JSON, default=list)  # references to recalled Hindsight facts
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     review = relationship("Review", back_populates="findings")

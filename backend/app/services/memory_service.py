@@ -132,7 +132,7 @@ class MemoryService:
                 f"Hindsight memory bank '{bank_id}' not found (HTTP 404) during {operation}."
             )
 
-        if "timeout" in body.lower() or status in (408, 504):
+        if (status in (408, 504) or "timed out" in body.lower()) and "task" not in body.lower() and "context manager" not in body.lower():
             return HindsightTimeoutError(
                 f"Hindsight request timed out after {self.timeout}s during {operation} on bank '{bank_id}'."
             )
@@ -209,6 +209,31 @@ class MemoryService:
                 "error": self._sanitize(str(e))
             }
 
+    def _execute_hsk(self, func, *args, **kwargs):
+        """Safely execute a Hindsight SDK call ensuring clean event loop and session context across thread boundaries."""
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        # If aiohttp pool_manager is bound to an old/closed loop, reset it so it re-initializes on the active loop
+        client = self.get_client()
+        rest_client = getattr(getattr(client, "_api_client", None), "rest_client", None)
+        if rest_client:
+            pool = getattr(rest_client, "_pool_manager", None)
+            if pool is not None:
+                pool_loop = getattr(pool, "_loop", None)
+                if pool.closed or pool_loop is None or pool_loop.is_closed() or pool_loop != loop:
+                    rest_client._pool_manager = None
+                    rest_client._retry_client = None
+
+        return func(*args, **kwargs)
+
     def ensure_bank_exists(self, project_id: int, project_name: str) -> bool:
         """
         Ensure an isolated memory bank exists in Hindsight for the project.
@@ -218,7 +243,8 @@ class MemoryService:
         bank_id = self.get_bank_id_for_project(project_id)
         try:
             client = self.get_client()
-            client.create_bank(
+            self._execute_hsk(
+                client.create_bank,
                 bank_id=bank_id,
                 name=f"ReviewMind: {project_name}",
                 mission="Store project coding standards, recurring bugs, resolved vulnerabilities, and developer preferences."
@@ -250,7 +276,8 @@ class MemoryService:
 
         try:
             client = self.get_client()
-            recall_resp = client.recall(
+            recall_resp = self._execute_hsk(
+                client.recall,
                 bank_id=bank_id,
                 query=query,
                 tags=tags if tags else None,
@@ -311,7 +338,8 @@ class MemoryService:
         metadata = {"project_id": str(project_id), "category": category}
 
         try:
-            retain_resp = client.retain(
+            retain_resp = self._execute_hsk(
+                client.retain,
                 bank_id=bank_id,
                 content=content,
                 context=effective_context,
@@ -334,7 +362,7 @@ class MemoryService:
         bank_id = self.get_bank_id_for_project(project_id)
 
         try:
-            resp = client.list_memories(bank_id=bank_id, limit=100)
+            resp = self._execute_hsk(client.list_memories, bank_id=bank_id, limit=100)
             items: List[MemoryItem] = []
             mem_units = getattr(resp, "items", []) or getattr(resp, "memory_units", []) or []
             for u in mem_units:
