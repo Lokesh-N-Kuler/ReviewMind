@@ -197,7 +197,7 @@ export default function Memory() {
           <p className="text-xs text-slate-500 truncate">
             {connStatus?.connected
               ? `Connected at ${connStatus.base_url}`
-              : 'Start Hindsight server at http://localhost:8888'}
+              : 'Vectorize Hindsight Cloud (api.hindsight.vectorize.io)'}
           </p>
         </div>
 
@@ -207,10 +207,10 @@ export default function Memory() {
             Total Retained Knowledge
           </span>
           <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
-            {memories.length}
+            {loading ? '...' : memories.length}
           </div>
-          <p className="text-xs text-slate-500">
-            Learned standards, resolved bugs, and developer preferences
+          <p className="text-xs text-slate-500 truncate">
+            {bankStatus?.hindsight_bank_id ? `Active Bank: ${bankStatus.hindsight_bank_id}` : 'Learned standards, resolved bugs, and developer preferences'}
           </p>
         </div>
       </div>
@@ -345,6 +345,44 @@ export default function Memory() {
           </div>
         )}
       </div>
+
+      {/* Activity Log */}
+      {activity.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              Memory Bank Activity History
+            </h2>
+            <p className="text-xs text-slate-500">
+              Audit log of all memory retention and recall operations executed by the agent.
+            </p>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {activity.map((act) => (
+              <div key={act.id} className="p-4 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-3">
+                  <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold uppercase ${
+                    act.action === 'retain'
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                      : 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
+                  }`}>
+                    {act.action}
+                  </span>
+                  <span className="text-slate-800 dark:text-slate-200 font-medium">
+                    {typeof act.details === 'object'
+                      ? (act.details?.query || act.details?.summary || act.details?.content || JSON.stringify(act.details))
+                      : String(act.details)}
+                  </span>
+                </div>
+                <span className="text-slate-400 text-[11px]">
+                  {new Date(act.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Retain Modal */}
       {isModalOpen && (

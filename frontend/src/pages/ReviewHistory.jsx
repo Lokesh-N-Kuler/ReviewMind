@@ -2,14 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   History,
   Search,
-  Filter,
   Code2,
-  FolderGit2,
-  ShieldAlert,
-  AlertTriangle,
   Brain,
   ChevronRight,
-  Eye,
   Calendar,
   X,
   Copy,
@@ -257,6 +252,26 @@ export default function ReviewHistory() {
                   <code>{selectedReview.source_code}</code>
                 </pre>
               </div>
+
+              {/* Recalled Memories */}
+              {selectedReview.recalled_memories && selectedReview.recalled_memories.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                    <Brain className="w-3.5 h-3.5" />
+                    Recalled Hindsight Memories ({selectedReview.recalled_memories.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedReview.recalled_memories.map((mem, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-100 dark:border-purple-900 text-xs text-purple-900 dark:text-purple-300 font-medium"
+                      >
+                        {typeof mem === 'string' ? mem : mem.text || mem.content || JSON.stringify(mem)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Findings */}
               <div className="space-y-3">

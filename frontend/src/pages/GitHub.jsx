@@ -3,16 +3,9 @@ import {
   Key,
   FolderGit2,
   GitPullRequest,
-  FileCode,
-  Play,
   Send,
-  CheckCircle,
-  AlertTriangle,
   ExternalLink,
-  ShieldAlert,
   ChevronRight,
-  Shield,
-  Trash2,
 } from 'lucide-react';
 import GithubIcon from '../components/GithubIcon';
 import { githubService, projectService } from '../services/api';
@@ -79,7 +72,7 @@ export default function GitHub() {
       setSelectedRepo(null);
       setSelectedPR(null);
       await fetchStatusAndData();
-    } catch (err) {
+    } catch {
       alert('Failed to disconnect');
     }
   };

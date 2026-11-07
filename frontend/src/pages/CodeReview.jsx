@@ -6,8 +6,6 @@ import {
   RotateCcw,
   Sparkles,
   ShieldAlert,
-  AlertTriangle,
-  Info,
   CheckCircle,
   Brain,
   ThumbsUp,
@@ -17,8 +15,6 @@ import {
   ChevronDown,
   FolderGit2,
   FileCode,
-  ArrowRight,
-  ExternalLink,
 } from 'lucide-react';
 import { projectService, reviewService } from '../services/api';
 import { useTheme } from '../context/ThemeContext';

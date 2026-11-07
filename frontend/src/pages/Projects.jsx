@@ -5,13 +5,9 @@ import {
   Plus,
   Code2,
   Brain,
-  Calendar,
   ExternalLink,
   Trash2,
-  Edit,
   Shield,
-  CheckCircle,
-  AlertCircle,
   X,
 } from 'lucide-react';
 import { projectService } from '../services/api';

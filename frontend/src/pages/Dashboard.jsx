@@ -5,15 +5,10 @@ import {
   FolderGit2,
   AlertTriangle,
   ShieldAlert,
-  CheckCircle2,
   Brain,
   ArrowRight,
-  TrendingUp,
   Sparkles,
-  Clock,
-  ExternalLink,
   ChevronRight,
-  Activity,
 } from 'lucide-react';
 import { projectService, reviewService, healthService } from '../services/api';
 

@@ -11,6 +11,13 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('reviewmind_token'));
   const [loading, setLoading] = useState(true);
 
+  const logout = () => {
+    localStorage.removeItem('reviewmind_token');
+    localStorage.removeItem('reviewmind_user');
+    setToken(null);
+    setUser(null);
+  };
+
   useEffect(() => {
     const verifyUser = async () => {
       const storedToken = localStorage.getItem('reviewmind_token');
@@ -46,13 +53,6 @@ export const AuthProvider = ({ children }) => {
     setToken(access_token);
     setUser(userData);
     return userData;
-  };
-
-  const logout = () => {
-    localStorage.removeItem('reviewmind_token');
-    localStorage.removeItem('reviewmind_user');
-    setToken(null);
-    setUser(null);
   };
 
   return (

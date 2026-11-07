@@ -8,7 +8,6 @@ import {
   Moon,
   Shield,
   CheckCircle,
-  AlertCircle,
   Server,
 } from 'lucide-react';
 import GithubIcon from '../components/GithubIcon';
@@ -55,7 +54,10 @@ export default function Settings() {
         </p>
       </div>
 
-      <div className="space-y-6">
+      {loading ? (
+        <div className="p-12 text-center text-slate-400 text-xs">Loading telemetry & diagnostics...</div>
+      ) : (
+        <div className="space-y-6">
         {/* User Profile Card */}
         <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
@@ -204,6 +206,7 @@ export default function Settings() {
           </div>
         </div>
       </div>
-    </div>
+    )}
+  </div>
   );
 }
